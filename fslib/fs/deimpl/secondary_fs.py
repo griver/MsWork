@@ -8,7 +8,8 @@ class SecondaryFS(BaseSecondary):
 
     def __init__(self, env, delta_si, delta_ri, delta_ci, calc_IA, calc_AR, calc_ii, motiv_fs, prev_state, goal_state):
 
-        BaseSecondary.__init__(self, "Secondary: " + prev_state.name + " -> " + goal_state.name)
+        assert isinstance(motiv_fs, BaseMotivational)
+        BaseSecondary.__init__(self, "Sec_"+ str(motiv_fs.get_id()) + ":" + prev_state.name + "->" + goal_state.name)
 
         self._newS = 0
         self._newR = 0
@@ -58,14 +59,14 @@ class SecondaryFS(BaseSecondary):
 
     def deactivation_method(self):
         if self.is_active() and not self._deactivated:
-            print("Set deactivation to TRUE (" + self.name + ")")
+            #print("Set deactivation to TRUE (" + self.name + ")")
             self._deactivate = True
             self.__dnumber = 0
 
         if self._deactivated:
             self.__dnumber += 1
-            print(self.name + ": dnumber = " + str(self.__dnumber))
+            #print(self.name + ": dnumber = " + str(self.__dnumber))
             if self.__dnumber == 10:
-                print(self.name + " is deactivated!")
-                self._newR = 0
-                self._newS = 0
+                #print(self.name + " is deactivated!")
+                self._newR = 0.0
+                self._newS = 0.0

@@ -5,7 +5,9 @@ from fslib.fs.fs_network import BaseFSNetwork
 import fslib.util.de_equations as de_eqs
 import fslib.util.lm_equations as lm_eqs
 from fslib import LMSecondary
+from fslib import OneActivationSecondary
 from fslib import MotivationFS
+from fslib import Environment
 
 #-----action_fs----------------------------------
 act_x0 = 0.25 #0.25
@@ -47,15 +49,30 @@ mot_gamma = 0.0
 mot_edge = 2.0
 
 mot_tau = 1.0
-mot_tau1 = 20
+mot_tau1 = 3 # 20
 mot_tau2 = 30
 mot_tau3 = 10
 mot_tau4 = 10
 #----/motivational_fs--------------------------------
 
 
-def base_network(name = "FSNetwork"):
+def create_empty_network(name = "FSNetwork"):
     return BaseFSNetwork(act_edge, sec_edge, motiv_edge, name)
+
+
+def create_network(env, create_motor, name = "FSNetwork"):
+    assert isinstance(env, Environment)
+
+    net = BaseFSNetwork(act_edge, sec_edge, motiv_edge, name)
+    for i in range(env.get_dimension()):
+        mot0 = create_motor(env, net, i, 0)
+        mot1 = create_motor(env, net, i, 1)
+        net.add_motor(mot0)
+        net.add_motor(mot1)
+
+    return net
+
+
 
 def simple_motiv(env, goal):
     return SimpleMotivFS(env, goal)
@@ -84,14 +101,17 @@ def secondary(env, motiv_fs, prev, goal):
     #sec._active_threshold = 2.0
     return sec
 
-def motor(env, motiv_fs, index, coord_val):
+def motor(env, net, index, coord_val):
+    assert  isinstance(net, BaseFSNetwork)
+    motiv_cn = net.get_cnet(net.MOTIV_NET)
     delta_si = de_eqs.delta_si_maker(act_k, act_x0, act_sigma1)
     delta_ri = de_eqs.delta_ri_maker(act_tau, act_sigma2)
     delta_ci = de_eqs.delta_ci_maker(act_k, act_x1, act_tauc0, act_tauc1)
-    calc_IA = de_eqs.motor_ia_maker(act_k, 0.1, coord_val) #eqs.foo_maker(0, 240)  #
+    #calc_IA = de_eqs.motor_ia_maker(act_k, 0.1, coord_val) #eqs.foo_maker(0, 240)  #
+    calc_IA = de_eqs.motor_ia_maker3(de_eqs.discrete_f_maker(0.5), index, coord_val)
     calc_AR = de_eqs.motor_ar_maker(act_k, 0.1, coord_val)
     calc_ii = de_eqs.ii_maker(act_alpha, act_beta, act_gamma, 1)
-    return MotorFS(env, delta_si, delta_ri, delta_ci, calc_IA, calc_AR, calc_ii, motiv_fs, index, coord_val)
+    return MotorFS(env, delta_si, delta_ri, delta_ci, calc_IA, calc_AR, calc_ii, motiv_cn, index, coord_val)
 
 def base_fs(env, motiv_fs, index, coord_val):
     delta_si = de_eqs.delta_si_maker(act_k, act_x0, act_sigma1)
@@ -104,20 +124,31 @@ def base_fs(env, motiv_fs, index, coord_val):
     m.deactivation_method = lambda: True
     return m
 
-def lm_secondary(env, motiv_fs, prev, goal):
+
+#deactivation in case of absence of the environment reaction
+def lm_secondary(net, env, motiv_fs, prev, goal):
     calc_IA = lm_eqs.sec_IA_maker()
     calc_AR = lm_eqs.sec_AR_maker()
     calc_ii = lm_eqs.sec_ii_maker(0.5)
-    return LMSecondary(env, motiv_fs, prev, goal, calc_IA, calc_AR, calc_ii, lm_eqs.delta_si)
+    return LMSecondary(net, env, motiv_fs, prev, goal, calc_IA, calc_AR, calc_ii, lm_eqs.delta_si)
+
+
+#deactivation after one activity period
+def lm_secondary2(net, env, motiv_fs, prev, goal):
+    calc_IA = lm_eqs.sec_IA_maker()
+    calc_AR = lm_eqs.sec_AR_maker()
+    calc_ii = lm_eqs.sec_ii_maker2(0.3)
+    return OneActivationSecondary(net, env, motiv_fs, prev, goal, calc_IA, calc_AR, calc_ii, lm_eqs.delta_si_with_deactivation)
+
 
 #deactivation_disabled
-def lm_secondary2(env, motiv_fs, prev, goal):
+def lm_secondary3(net, env, motiv_fs, prev, goal):
     calc_IA = lm_eqs.sec_IA_maker()
 
     calc_IA = de_eqs.foo_maker(25, 65)
     calc_AR = lm_eqs.sec_AR_maker()
     calc_ii = lm_eqs.sec_ii_maker(0.5)
 
-    lm=LMSecondary(env, motiv_fs, prev, goal, calc_IA, calc_AR, calc_ii, lm_eqs.delta_si)
+    lm=LMSecondary(net, env, motiv_fs, prev, goal, calc_IA, calc_AR, calc_ii, lm_eqs.delta_si)
     lm.deactivation_method = MotorFS.deactivation_method
     return lm

@@ -16,7 +16,8 @@ class PlotBuilder(object):
             ax = self.figure.add_subplot(gridx, gridy, i + 1)
             self.sp.append(ax)
 
-    def plot_funcs(self, plt_id, x_axis, func, *funcs):
+    # funcs are triples (y_value_array, 'line_style', label_name)
+    def plot_curves(self, plt_id, x_axis, func, *funcs):
         cid = 0
         lines = []
         tmp = self.sp[plt_id].plot(x_axis, func[0], func[1], color=colors[cid], label=func[2])    # func[1], label=func[2])
@@ -40,6 +41,60 @@ class PlotBuilder(object):
 
         for label in legend.get_lines():
             label.set_linewidth(1)  # the legend line width
+
+        return
+
+    # funcs triples  of type: (yvalues, label_name)
+    # where xranges is sequence of (xmin, xwidth)
+    # xlim = (xmin, xmax)
+    # ylim = (ymin, ymax)
+    def plot_bars(self, plt_id, xlim, ylim, thresh,  *funcs):
+        if len(funcs) == 0:
+            return
+
+        ax = self.sp[plt_id]
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
+        ywidth = ylim[1] - ylim[0]
+        ymin =  ylim[0]
+        bar_width = float(ywidth) / len(funcs)
+        id_list = range(0, len(funcs))
+
+        for i in id_list:
+            #print(brocken_bars[i][0])
+            #print((bar_width*i, bar_width))
+            #print("-----------------------------")
+            bb = self._yvalue_to_bar(funcs[i][0], thresh)
+            ax.broken_barh(bb, (bar_width*i, bar_width), facecolors='black')
+
+        ticks_list = map(lambda i: bar_width* i + bar_width/2.0 + ymin, id_list)
+        print(ticks_list)
+        ax.set_yticks(ticks_list)
+        ax.set_yticklabels(zip(*funcs)[-1])
+        ax.grid(True)
+
+    def _yvalue_to_bar(self, yvalues, thresh):
+        start = None
+        l = None
+        broken_bar = []
+        for i in range(0, len(yvalues)):
+            if start is not None:
+                l += 1
+                if yvalues[i] < thresh:
+                    broken_bar.append((start, l))
+                    start = None
+
+            elif yvalues[i] >= thresh:
+                start = i
+                l = 0
+
+        if start is not None:
+            broken_bar.append((start, l))
+        return broken_bar
+
+
+    def get_subplot_ax(self, plt_id):
+        return self.sp[plt_id]
 
     def show(self):
         plt.show()

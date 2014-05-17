@@ -23,3 +23,5 @@ class Edge(object):
     def __str__(self):
         result = "Src:" + str(self._src.get_id()) + " Dst:" + str(self._dst.get_id()) + " Weight:" + str(self._weight)
 
+    def is_available(self):
+        return True

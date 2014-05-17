@@ -1,13 +1,13 @@
 # coding=utf-8
-from fslib.graph.graph import Graph
-
+from fslib import Graph
+from fslib import Edge
 
 class Environment(Graph):
-    def __init__(self, dimension, name = "environment"):
+    def __init__(self, dimension, name="environment", start_state_id=0,):
         Graph.__init__(self, name)
         self._dim = dimension # the dimension of a space
-        self._curr_state = 0
-
+        self._curr_state = None
+        self._start_id = start_state_id
 
     def get_dimension(self):
         return self._dim
@@ -21,6 +21,10 @@ class Environment(Graph):
         return dist**(1.0/2.0)  # Euclidean norm
         #return dst
 
+    def reset(self):
+        if len(self.vertices()) > self._start_id:
+            self.set_current_state(self.get_vertex(self._start_id))
+
     def distance_from_current(self, state):  # get distance from current environment state
         return self.distance(self.get_current_state(), state)
 
@@ -31,6 +35,8 @@ class Environment(Graph):
 
 
     def get_current_state(self):
+        if self._curr_state is None:
+            self.reset()
         return self._curr_state
 
     def set_current_state(self, start):
@@ -40,26 +46,25 @@ class Environment(Graph):
         return False
 
     _msg = True
-    _count = 0
-    def update_state(self, motor_fs):
-        tmp_c = motor_fs.change_coords(self.get_current_state().coords())
+    def update_state(self, coords):
         curr = self.get_current_state()
         tmp_st = None
-        for e in curr.get_outcoming():
-            if e.get_dst().coords() == tmp_c:
-                tmp_st = e.get_dst()
 
-        if tmp_st is self.get_current_state(): # this case never happens
-            self._msg = True
-            return
+        #ищем вершину с заданными координатами среди смежных вершин
+        for e in curr.get_outcoming():
+            if e.get_dst().coords() == coords:
+                if e.is_available():
+                    tmp_st = e.get_dst()
 
         if tmp_st is None:
             if self._msg:
-                print("Нельзя перейти из " + curr.name + " в " + str(tmp_c))
+                print("Нельзя перейти из " + curr.name + " в " + str(coords))
                 self._msg = False
             return
 
         print("Перешли из " + curr.name + " в " + tmp_st.name)
+
+
         self.set_current_state(tmp_st)
         self._msg = True
 

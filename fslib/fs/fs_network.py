@@ -1,4 +1,4 @@
-
+# coding=utf-8
 from fslib import Graph
 from fslib import BaseMotor
 from fslib import BaseSecondary
@@ -8,38 +8,46 @@ from fslib import MotorFS
 
 class CompetitiveNetwork(object):
     def __init__(self, edge_weight):
-        self.eweight = edge_weight
+        self.e_weight = edge_weight
         self.vertices = []
 
     def add_fs(self, fs):
         self.vertices.append(fs)
 
-
+    def get_active(self):
+        for v in self.vertices:
+            if v.is_active():
+                return v
+        return None
 
 
 
 class BaseFSNetwork(Graph):
     MOTOR_NET = "MOTOR"
     MOTIV_NET = "MOTIV"
+    time = 0
     def __init__(self, motor_edges_weight, sec_edges_weight, motiv_edges_weight,  name="FSNetwork"):
         Graph.__init__(self, name)
         self._act_weight = motor_edges_weight
         self._motiv_weight = motiv_edges_weight
         self._sec_weight = sec_edges_weight
+        self._curr_action = None
 
         self._cnets = {}
         self.create_cnet(self.MOTOR_NET, motor_edges_weight)
         self.create_cnet(self.MOTIV_NET, motiv_edges_weight)
 
-    def reset_all(self):
+    def reset(self):
+        self.time = 0
         for fs in self._vertex_list:
             fs.reset()
 
-    def recalc_all(self):
+    def recalc(self):
         for fs in self._vertex_list:
             fs.recalculate_params()
 
-    def apply_all(self):
+    def apply(self):
+        self.time += 1
         for fs in self._vertex_list:
             fs.apply_new_params()
 
@@ -58,12 +66,25 @@ class BaseFSNetwork(Graph):
     def all_motiv(self):
         return self.filter_by_type(BaseMotivational)
 
-    def get_actions(self):
+    __get_action_last_call = 0
+    def get_action(self):
+        if self.__get_action_last_call == self.time:
+            return self._curr_action
+
         result = []
-        for fs in filter(lambda fs: isinstance(fs, MotorFS), self._vertex_list):
+        for fs in self.all_motor():
             if fs.is_active():
                 result.append(fs)
-        return result
+
+        if len(result) > 1:
+            raise ValueError("Одновременно активны несколько FS действия")
+        elif len(result) == 0:
+            self._curr_action = None
+        else:
+            self._curr_action = result[0]
+
+        self.__get_action_last_call = self.time
+        return self._curr_action
 
     def filter_by_type(self, type):
         return filter(lambda v: isinstance(v, type), self.vertices())
@@ -77,7 +98,7 @@ class BaseFSNetwork(Graph):
         self._cnets[name] = CompetitiveNetwork(edge_weight)
 
     def get_cnet(self, name):
-        return self._cnets[name]
+        return self._cnets.get(name, None)
 
     def add_in_cnet(self, fs, cnet_name):
         assert fs.get_cnet_name() is None
@@ -88,8 +109,8 @@ class BaseFSNetwork(Graph):
             raise ValueError("Competitive network already include this functional system")
 
         for v in cnet.vertices:
-            self.add_edge(fs, v, cnet.eweight)
-            self.add_edge(v, fs, cnet.eweight)
+            self.add_edge(fs, v, cnet.e_weight)
+            self.add_edge(v, fs, cnet.e_weight)
 
         cnet.add_fs(fs)
         fs.set_cnet_name(cnet_name)

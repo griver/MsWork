@@ -128,7 +128,13 @@ class FunctionalSystem(Vertex):
 
 
 class BaseMotor(FunctionalSystem):
-    pass
+    _motiv_cn = None
+
+    def is_motivated(self):
+        return self._motiv_cn.get_active() != None
+
+    def change_coords(self):
+        raise NotImplementedError()
 
 
 class BaseSecondary(FunctionalSystem):
@@ -147,5 +153,9 @@ class BaseSecondary(FunctionalSystem):
 
 
 class BaseMotivational(FunctionalSystem):
-    pass
+    _goal_state = None
+
+    def get_goal(self):
+        return self._goal_state
+
 

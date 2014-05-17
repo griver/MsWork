@@ -5,7 +5,7 @@ import random
 class SimpleMotivFS(BaseMotivational):
     def __init__(self, env, goal_state):
         BaseMotivational.__init__(self, "SimpleMotiv(" + goal_state.name + ')')
-        self._goal = goal_state
+        self._goal_state = goal_state
         self._S = 1
         self._newS = 1
         self._env = env
@@ -13,7 +13,7 @@ class SimpleMotivFS(BaseMotivational):
 
     def recalculate_params(self): # calculate new parameters of fs
         if isinstance(self._env.get_current_state(), Point):
-            if self._goal == self._env.get_current_state():
+            if self._goal_state == self._env.get_current_state():
                 self._newS = 0
             else:
                 self._newS = 1
@@ -26,16 +26,14 @@ class SimpleMotivFS(BaseMotivational):
         self._newS = 1
 
     def set_goal(self, point):
-        self._goal = point
+        self._goal_state = point
 
-    def get_goal(self):
-        return self._goal
 
 class MotivationFS(BaseMotivational):
 
     def __init__(self, env, delta_si, delta_ri, calc_IA, calc_AR, calc_I, goal_state):
-        BaseMotivational.__init__(self, "Motiv(" + goal_state.name + ')')
-        self._goal = goal_state
+        BaseMotivational.__init__(self, "M(" + goal_state.name + ')')
+        self._goal_state = goal_state
         self._env = env
 
         self._delta_si = delta_si

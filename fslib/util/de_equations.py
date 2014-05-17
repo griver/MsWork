@@ -1,7 +1,10 @@
 # equations & equations factories which describes dynamics of functional systems
 import math as m
 import numpy as np
-from fslib import MotivationFS
+from fslib import BaseMotor
+from fslib import BaseSecondary
+from fslib import BaseMotivational
+import warnings
 
 #-------utility eqs--------------------------------------------
 def f_maker(k, threshold):
@@ -71,6 +74,7 @@ def delta_ri_maker(taui, sigma2):
     def calc_delta_ri(si, ri, ii):
         delta_ri = ri*(si + ii - ri) #+ sigma2 * random.random()
         delta_ri = delta_ri/taui
+
         return delta_ri
 
     return calc_delta_ri
@@ -128,6 +132,20 @@ def motor_ia_maker2(threshold_func, j):
 
     return calc_motor_ia
 
+def motor_ia_maker3(threshold_func, index, coord_val):
+    f = threshold_func
+    h = h_maker2(f)
+    start_val = 1 - coord_val
+
+    def calc_motor_ia(motor_fs):
+        #assert isinstance(motor_fs, BaseMotor)
+        curr_val = motor_fs._env.get_current_state().coords()[index]
+        motor_ia = f(motor_fs.is_motivated())*h((curr_val - start_val)**2)
+        return motor_ia
+
+    return calc_motor_ia
+
+
 
 def motor_ia_maker(k, threshold, j):
     f = f_maker(k, threshold)
@@ -177,9 +195,9 @@ def sec_ar_maker(k, threshold):
 def mot_ar_maker(base_tau, decrease_tau):
 
     def calc_ar(fs):
-        assert isinstance(fs, MotivationFS)
+        assert isinstance(fs, BaseMotivational)
         curr = fs._env.get_current_state()
-        if fs._goal == fs._env.get_current_state():
+        if fs._goal_state == fs._env.get_current_state():
             return 1.0
         else:
             return 0.0

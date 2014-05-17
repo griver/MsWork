@@ -1,14 +1,19 @@
 # coding=utf-8
-from fslib import BaseMotor, BaseSecondary
+from fslib import BaseMotor, BaseSecondary, BaseMotivational
 from fslib.util import fs_builder as FSBuilder
 from fslib.util.plots import PlotBuilder
+from fslib import BaseFSNetwork
+from fslib import Environment
+from logger import TrialLogger
+
 
 
 def _find_predicate(sec, start, end, motiv):
     assert isinstance(sec, BaseSecondary)
     return sec.IA_point() is start and sec.AR_point() is end and sec.get_motivation() is motiv
 
-def _find_unlearned_transit(path, net, motiv):
+
+def _find_unlearned_transit(path, starting_state, net, motiv):
     goal = motiv.get_goal()
     if goal is not path[-1]:
         raise ValueError("path must end with a goal state")
@@ -20,6 +25,9 @@ def _find_unlearned_transit(path, net, motiv):
         fs = next((s for s in secs if _find_predicate(s, path[i], path[i+1], motiv)), None)
         if fs is None:
             return i
+
+        if path[i] == starting_state:
+            break
 
     return None
 
@@ -44,8 +52,8 @@ def single_goal_learning(env, net, motiv, sec_to_sec_weight, sec_to_motor_weight
         n += 1
         #if n % 100 == 0:
         #    print(n)
-        net.recalc_all()
-        net.apply_all()
+        net.recalc()
+        net.apply()
         active_motor_fs = filter(lambda fs: fs.is_active(), motor_list)
 
         for i in range(0, len(net.vertices())):
@@ -85,12 +93,12 @@ def single_goal_learning(env, net, motiv, sec_to_sec_weight, sec_to_motor_weight
     pb = PlotBuilder()
     if len(sec_funcs) > 0:
         pb.create_figure(3, 1)
-        pb.plot_funcs(1, range(0, n), *act_funcs)
-        pb.plot_funcs(2, range(0, n), *sec_funcs)
+        pb.plot_curves(1, range(0, n), *act_funcs)
+        pb.plot_curves(2, range(0, n), *sec_funcs)
     else:
         pb.create_figure(2, 1)
-        pb.plot_funcs(1, range(0, n), *act_funcs)
-    pb.plot_funcs(0, range(0, n), (state_changes, 'o-', "State"))
+        pb.plot_curves(1, range(0, n), *act_funcs)
+    pb.plot_curves(0, range(0, n), (state_changes, 'o-', "State"))
     pb.show()
     #---/show graphs-------------------
 
@@ -127,4 +135,174 @@ def single_goal_learning(env, net, motiv, sec_to_sec_weight, sec_to_motor_weight
     return n, st_path, logger
 
 
+def trial_stop_condition(env, net):
+    ##assert isinstance(net, BaseFSNetwork)
+    ##assert isinstance(env, Environment)
+    # Если мы находимся в целевом состоянии хотя бы одной мотивационной ФС
+    return len(filter(lambda m: m.is_active() and env.get_current_state() is m.get_goal(),  net.all_motiv())) > 0
 
+
+def trial(net, env, logger):
+    #assert isinstance(net, BaseFSNetwork)
+    assert isinstance(env, Environment)
+    #assert isinstance(logger, TrialLogger)
+    actions_number = 0
+    prev_fs = None
+    logger.start_trial(env, net)
+
+
+    while not trial_stop_condition(env, net):
+        net.recalc()
+        net.apply()
+        curr_motor = net.get_action()
+
+        if curr_motor is not None:
+            if curr_motor is not prev_fs:
+                print(curr_motor.name + " is active")
+                actions_number += 1
+
+            env.update_state(curr_motor.change_coords())
+
+        prev_fs = curr_motor
+        logger.add(net, env)
+
+    print("active_fs == " + str(actions_number))
+
+
+def network_update(net, env, logger, sec_cnet_weight=1.0, sec_motor_weight=1.5):
+    assert isinstance(net, BaseFSNetwork)
+    assert isinstance(env, Environment)
+    assert isinstance(logger, TrialLogger)
+
+    trial_path = logger.get_path()
+    trial_actions = logger.get_actions()
+    motivs = filter(lambda m: m.is_active() and trial_path[-1] == m.get_goal(), net.all_motiv())
+
+    if len(motivs) != 1:
+        raise ValueError("Ошибка: Количество мотивационных систем удовлеторивших потребность: " + str(len(motivs)))
+
+    id = _find_unlearned_transit(trial_path, logger.get_last_start(), net, motivs[0])
+
+    if id is None:
+        print("Весь путь от начального состояния до цели был выучен")
+        return
+
+    print("Добавляем вторичную фс для перехода из " + trial_path[id].name + " в " + trial_path[id + 1].name)
+    print("она будет стимулировать активность системы  " + trial_actions[id].name)
+    sec = FSBuilder.lm_secondary2(net, env, motivs[0], trial_path[id], trial_path[id + 1])
+
+    # find other secondary fs associated with this state
+    secs = filter(lambda fs: fs.IA_point() is trial_path[id], net.all_secondary())
+
+    net.add_vertex(sec)
+
+    if len(secs) == 1:
+        cnet_name = "CNET" + trial_path[id].name
+        net.create_cnet(cnet_name, sec_cnet_weight)
+        print("create competitive network: " + cnet_name)
+        net.add_in_cnet(sec, cnet_name)
+        net.add_in_cnet(secs[0], cnet_name)
+    elif len(secs) > 1:
+        cnet_name = secs[0].get_cnet_name()
+        net.add_in_cnet(sec, cnet_name)
+
+    for fs in net.all_motor():
+        if fs is trial_actions[id]:
+            net.add_edge(sec, fs, sec_motor_weight)
+        else:
+            net.add_edge(sec, fs, -sec_motor_weight)
+
+
+    #if(fs.IA_point().coords() == (0,1,1) and fs.AR_point().coords() )
+    contrs = filter(lambda fs: fs.IA_point() is trial_path[id + 1]
+                        and fs.AR_point() is trial_path[id]
+                        and fs.get_motivation() is motivs[0], net.all_secondary())
+
+    if len(contrs) == 1:  # we add inhibitory connection between secondary systems which do the contrary actions.
+        net.add_edge(sec, contrs[0], -sec_cnet_weight)
+        net.add_edge(contrs[0], sec, -sec_cnet_weight)
+
+
+def draw_trial(net, env, logger):
+    assert isinstance(net, BaseFSNetwork)
+    assert isinstance(logger, TrialLogger)
+    if logger.get_count() == 0:
+        print("Trial log is empty")
+        return
+
+    print("path length: " + str(len(logger.get_path()) - 1))
+    motiv_funcs = []
+    motor_funcs = []
+    sec_funcs = []
+    x_axis = range(0, logger.get_count())
+    activities = logger.get_fs_activities()
+
+    for i in range(0, len(activities)):
+        fs = net.get_vertex(i)
+        if isinstance(fs, BaseMotor):
+            motor_funcs.append((activities[i], '-', fs.name))
+        elif isinstance(fs, BaseSecondary):
+            sec_funcs.append((activities[i], '--', fs.name))
+        elif isinstance(fs, BaseMotivational):
+            motiv_funcs.append((activities[i], '--', fs.name))
+
+    pb = PlotBuilder()
+    if len(sec_funcs) > 0 and logger.get_last_count() == 0:
+        pb.create_figure(4, 1)
+        pb.plot_curves(3, x_axis, *sec_funcs)
+        pb.get_subplot_ax(3).set_ylim(-0.1, 1.1)
+    else:
+        pb.create_figure(3, 1)
+
+    pb.plot_curves(2, x_axis, *motor_funcs)
+    #pb.plot_curves(1, x_axis, *motiv_funcs)
+    pb.plot_bars(1, (x_axis[0], x_axis[-1]), (0, 100), 0.98, *motiv_funcs)
+    pb.plot_curves(0, x_axis, (logger.get_states(), 'o-', "State"))
+
+    pb.show()
+
+
+def draw_trial_bars(net, env, logger):
+    assert isinstance(net, BaseFSNetwork)
+    assert isinstance(logger, TrialLogger)
+    if logger.get_count() == 0:
+        print("Trial log is empty")
+        return
+
+    motiv_funcs = []
+    motor_funcs = []
+    sec_funcs = []
+    x_axis = range(0, logger.get_count())
+    activities = logger.get_fs_activities()
+
+    for i in range(0, len(activities)):
+        fs = net.get_vertex(i)
+        if isinstance(fs, BaseMotor):
+            motor_funcs.append((activities[i], '-', fs.name))
+        elif isinstance(fs, BaseSecondary):
+            sec_funcs.append((activities[i], '--', fs.name))
+        elif isinstance(fs, BaseMotivational):
+            motiv_funcs.append((activities[i], '--', fs.name))
+
+    pb = PlotBuilder()
+    if len(sec_funcs) > 0 and logger.get_last_count() == 0:
+        pb.create_figure(4, 1)
+        pb.plot_curves(3, x_axis, *sec_funcs)
+        pb.get_subplot_ax(3).set_ylim(-0.1, 1.1)
+    else:
+        pb.create_figure(3, 1)
+
+    pb.plot_bars(2, (x_axis[0], x_axis[-1]), (0, 400), 0.98, *motor_funcs)
+    pb.plot_bars(1, (x_axis[0], x_axis[-1]), (0, 100), 0.98, *motiv_funcs)
+    pb.plot_curves(0, x_axis, (logger.get_states(), 'o-', "State"))
+
+    pb.show()
+
+def reset(*resetables):  # обновит тех кого передадим!
+    for obj in resetables:
+        obj.reset()
+
+
+def exit_condition():
+    tmp = int(input("Хотите продолжить обучение? (1/ 0)\n"))
+    return tmp == 0

@@ -1,4 +1,4 @@
-from fslib.graph.vertex import Vertex
+from fslib import Vertex
 
 class Point(Vertex):
     def __init__(self, coordinates):

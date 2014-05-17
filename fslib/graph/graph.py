@@ -39,7 +39,7 @@ class Graph(object) :
     def vertices(self):
         return tuple(self._vertex_list)
 
-    def add_edge(self, src, dst, weight):
+    def add_edge(self, src, dst, weight=1):
         if self.is_contains_vertex(src) and self.is_contains_vertex(dst):
             return Edge(src, dst, weight)
 
