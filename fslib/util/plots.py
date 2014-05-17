@@ -68,7 +68,7 @@ class PlotBuilder(object):
             ax.broken_barh(bb, (bar_width*i, bar_width), facecolors='black')
 
         ticks_list = map(lambda i: bar_width* i + bar_width/2.0 + ymin, id_list)
-        print(ticks_list)
+        #print(ticks_list)
         ax.set_yticks(ticks_list)
         ax.set_yticklabels(zip(*funcs)[-1])
         ax.grid(True)
