@@ -12,22 +12,24 @@ class PlotBuilder(object):
         self.figure = plt.figure()
         self.sp = []
         id = 1
-        for i in range(0, gridx * gridy):
+        for i in xrange(0, gridx * gridy):
             ax = self.figure.add_subplot(gridx, gridy, i + 1)
             self.sp.append(ax)
 
     # funcs are triples (y_value_array, 'line_style', label_name)
     def plot_curves(self, plt_id, x_axis, func, *funcs):
         cid = 0
+        maxx = len(colors)
         lines = []
-        tmp = self.sp[plt_id].plot(x_axis, func[0], func[1], color=colors[cid], label=func[2])    # func[1], label=func[2])
+        tmp = self.sp[plt_id].plot(x_axis, func[0], func[1], color=colors[cid % maxx], label=func[2])    # func[1], label=func[2])
         lines.append(tmp[0])
         for f in funcs:
             cid += 1
-            tmp = self.sp[plt_id].plot(x_axis, f[0], f[1], color=colors[cid], label=f[2])  # f[1], label=f[2])
+            tmp = self.sp[plt_id].plot(x_axis, f[0], f[1], color=colors[cid % maxx], label=f[2])  # f[1], label=f[2])
             lines.append(tmp[0])
 
         # Now add the legend with some customizations.
+        #if True: return
 
         legend = self.sp[plt_id].legend(loc='lower left', shadow=True)
 
@@ -77,7 +79,7 @@ class PlotBuilder(object):
         start = None
         l = None
         broken_bar = []
-        for i in range(0, len(yvalues)):
+        for i in xrange(0, len(yvalues)):
             if start is not None:
                 l += 1
                 if yvalues[i] < thresh:

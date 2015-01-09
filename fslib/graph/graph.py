@@ -1,11 +1,12 @@
 from fslib.graph.edge import *
+
+
 class Graph(object) :
 
     def __init__(self, name) :
         self._vertex_list = []
         self._edge_list = []
         self._name = name
-
 
     def add_vertex(self, vertex):
         if self.is_contains_vertex(vertex) :
@@ -43,6 +44,11 @@ class Graph(object) :
         if self.is_contains_vertex(src) and self.is_contains_vertex(dst):
             return Edge(src, dst, weight)
 
+    def add_both_edges(self, src, dst, weight=1):
+        e1 = self.add_edge(src, dst, weight)
+        e2 = self.add_edge(dst, src, weight)
+        return e1, e2
+
     def remove_edge(self, edge):
         if self.is_contains_vertex(edge.get_src()) and self.is_contains_vertex(edge.get_dst()):
             edge.remove()
@@ -54,6 +60,9 @@ class Graph(object) :
             return True
         return False
 
+    def get_name(self):
+        return self._name
+
     def __str__(self):
         result = "digraph " + self._name + " {\n"
         for v in self._vertex_list:
@@ -61,6 +70,7 @@ class Graph(object) :
 
         for v in self._vertex_list:
             for e  in v.get_outcoming():
+                #if(e.is_available()): #1
                 result += "   v" + str(v.get_id()) + " -> v" + str(e.get_dst().get_id())
                 result += " [label=\""+ str(e.weight()) + "\"];\n"
 
@@ -72,4 +82,8 @@ class Graph(object) :
         f = open(filename, 'w')
         f.write(self.__str__())
         f.close()
+
+
+
+
 

@@ -23,11 +23,14 @@ class CompetitiveNetwork(object):
 
 
 class BaseFSNetwork(Graph):
-    MOTOR_NET = "MOTOR"
-    MOTIV_NET = "MOTIV"
-    time = 0
+
+
     def __init__(self, motor_edges_weight, sec_edges_weight, motiv_edges_weight,  name="FSNetwork"):
         Graph.__init__(self, name)
+        self.MOTOR_NET = "MOTOR"
+        self.MOTIV_NET = "MOTIV"
+        self.time = 0
+
         self._act_weight = motor_edges_weight
         self._motiv_weight = motiv_edges_weight
         self._sec_weight = sec_edges_weight
@@ -36,6 +39,10 @@ class BaseFSNetwork(Graph):
         self._cnets = {}
         self.create_cnet(self.MOTOR_NET, motor_edges_weight)
         self.create_cnet(self.MOTIV_NET, motiv_edges_weight)
+
+
+        self.__get_action_last_call = 0
+        self._last_action = None
 
     def reset(self):
         self.time = 0
@@ -66,7 +73,7 @@ class BaseFSNetwork(Graph):
     def all_motiv(self):
         return self.filter_by_type(BaseMotivational)
 
-    __get_action_last_call = 0
+
     def get_action(self):
         if self.__get_action_last_call == self.time:
             return self._curr_action
@@ -82,9 +89,14 @@ class BaseFSNetwork(Graph):
             self._curr_action = None
         else:
             self._curr_action = result[0]
+            self._last_action = self._curr_action
 
         self.__get_action_last_call = self.time
+
         return self._curr_action
+
+    def get_last_action(self):
+        return self._last_action
 
     def filter_by_type(self, type):
         return filter(lambda v: isinstance(v, type), self.vertices())
@@ -99,6 +111,9 @@ class BaseFSNetwork(Graph):
 
     def get_cnet(self, name):
         return self._cnets.get(name, None)
+
+    def get_cnet_names(self):
+        return self._cnets.keys()
 
     def add_in_cnet(self, fs, cnet_name):
         assert fs.get_cnet_name() is None

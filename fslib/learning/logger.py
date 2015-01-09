@@ -19,17 +19,15 @@ class TrialLogger(object):
         self._count += 1
         self._states.append(env.get_current_state().get_id())
 
-        if len(self._path) == 0:
-            self._path.append(env.get_current_state())
 
         if self._path[-1] != env.get_current_state():
             self._path.append(env.get_current_state())
-            self._actions.append(net.get_action())
+            self._actions.append(net.get_last_action())
 
-        for i in range(len(self._fs_activities), len(net.vertices())):
+        for i in xrange(len(self._fs_activities), len(net.vertices())):
             self._fs_activities.append([])
 
-        for i in range(0, len(net.vertices())):
+        for i in xrange(0, len(net.vertices())):
             self._fs_activities[i].append(net.get_vertex(i).get_S())
 
     def get_states(self):
@@ -54,7 +52,10 @@ class TrialLogger(object):
         return self._last_start
 
     def start_trial(self, env, net):
-        self._last_start = env.get_current_state()
+        if len(self._path) == 0:
+            self._path.append(env.get_current_state())
+
+        self._last_start = len(self._path) - 1
         self._last_count = self._count
 
 

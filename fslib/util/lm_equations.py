@@ -22,8 +22,7 @@ def sec_IA_maker(ia_value = MIN_IA):
 
     return calc_ia
 
-
-def sec_IA_maker_with_direction_influence(ia_value = MIN_IA):
+def weighted_IA_maker(ia_value = MIN_IA):
 
     def calc_ia(fs):
         assert isinstance(fs, LMSecondary)
@@ -31,12 +30,21 @@ def sec_IA_maker_with_direction_influence(ia_value = MIN_IA):
         env = fs._env
         edge = next((e for e in fs.get_incoming() if e.get_src() == fs._motiv_fs), None)
         if fs.IA_point() == env.get_current_state() and fs._motiv_fs.is_active():
-            ia = ia_value + 0.0002 * random.random()
-            return ia
+
+            out_infl = lambda e: isinstance(e.get_src(),BaseSecondary) and e.get_src().IA_point() != fs.IA_point()
+            inc2 = filter(out_infl, fs.get_incoming())
+            mean2 = reduce(lambda y, x: x.get_src().get_S()*x.weight() + y, inc2, 0.0)
+            if len(inc2):
+                mean2 /= len(inc2)
+
+
+            return ia_value * edge.weight() + 0.0002 * random.random() +  mean2*0.02
         else:
             return 0.0
 
     return calc_ia
+
+
 
 def sec_AR_maker(ia_value = MIN_IA):
 
@@ -86,7 +94,7 @@ def sec_ii_maker2( threshold):
         if len(inc2):
             mean2 /= len(inc2)
 
-        return (n * fs.get_S() >= mean) * (fs._newIA + mean2*0.01)
+        return (n * fs.get_S() >= mean) * (fs._newIA + mean2*0.02)
 
     return calc_ii
 

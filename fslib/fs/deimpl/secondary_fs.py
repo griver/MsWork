@@ -41,7 +41,7 @@ class SecondaryFS(BaseSecondary):
         self._newAR = self._calc_AR(ar_dist)
 
         influence_sum = self._calc_influence(lambda x: True)
-        self._newI = self._calc_ii(self._newIA, self._newAR, self._C)
+        self._newI = self._calc_ii(self)
 
         delta_R, delta_S = self._calc_rk4_rs(1, self._newI, influence_sum)
         self._newR = self._R + delta_R + 0.001 * random.random() * (self._newIA > 0.02)

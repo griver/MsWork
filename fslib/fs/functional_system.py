@@ -3,6 +3,14 @@ from fslib.graph.vertex import Vertex
 
 class FunctionalSystem(Vertex):
     def __init__(self, name="FS", active_threshold = 0.990):
+        """
+        :arguments:
+        name: name of this FS. Default name is "FS"
+        active_threshold: if  FS considered active if current activity surpass threshold. Default name is
+
+
+        """
+
         Vertex.__init__(self, name)
 
         self._cnet_name = None
@@ -17,42 +25,64 @@ class FunctionalSystem(Vertex):
         self._IA = 0
         self._AR = 0
         self._I = 0
-        self._active_threshold = active_threshold
+        self.active_threshold = active_threshold
 
         self._deactivated = False
 
     def is_active(self):
-        return self._S >= self._active_threshold
+        return self._S >= self.active_threshold
 
-    def recalculate_params(self):  # calculate new parameters of fs
+    def recalculate_params(self):
+        # calculate new parameters of fs
         raise NotImplementedError('Method recalculate_params() is pure virtual')
 
-    def apply_new_params(self):  # self-describing name
+    def apply_new_params(self):
+        # self-describing name
         raise NotImplementedError('Method apply_new_params() is pure virtual')
 
     def deactivation_method(self):
         pass
 
-    def get_S(self):  # activity of the functional system
+    def get_S(self):
+        """
+        activity of the functional system
+        """
         return self._S
 
-    def get_R(self):  # mismatch between current and goal states of the functional system
+    def get_R(self):
+        """
+        mismatch between current and goal states of the functional system
+        """
         return self._R
 
-    def get_C(self):  # used for the deactivation of the system if it is ineffective
+    def get_C(self):
+        """
+        used for the deactivation of the system if it is ineffective
+        """
         return self._C
 
-    def get_IA(self):  #  corresponds to the recognition of the problem state
+    def get_IA(self):
+        """
+        corresponds to the recognition of the problem state
+        """
         return self._IA
 
-    def get_AR(self):  # This parameter indicates the accomplishment of the goal.
+    def get_AR(self):
+        """
+        This parameter indicates the accomplishment of the goal.
+        """
         return self._AR
 
     def get_I(self):
         return self._I
 
     def state(self):
-        result = str(self.get_id()) + " (" + self.name + ")\n";
+        """
+        :Returns:
+        string representation of main FS internal parameters
+
+        """
+        result = str(self.get_id()) + " (" + self.name + ")\n"
         result += "  S: " + str(self.get_S())
         result += "  R: " + str(self.get_R())
         result += "  C: " + str(self.get_C())
@@ -69,21 +99,41 @@ class FunctionalSystem(Vertex):
         self._I = 0
         self._deactivated = False
 
+    def is_deactivated(self):
+        """
+        returns self._deactivated value
+        """
+        return self._deactivated
     # --- --------------aliases---------------------------------------------
 
-    def get_activity(self):  # alias for get_S()
+    def get_activity(self):
+        """
+        alias for get_S()
+        """
         return self.get_S()
 
-    def get_mismatch(self):  # alias for get_R()
+    def get_mismatch(self):
+        """
+        alias for get_R()
+        """
         return self.get_R()
 
-    def get_deactivation_variable(self):  # alias for get_C()
+    def get_deactivation_variable(self):
+        """
+        alias for get_C()
+        """
         return self.get_C()
 
-    def get_input_afferentation(self):  # alias for get_IA()
+    def get_input_afferentation(self):
+        """
+        alias for get_IA()
+        """
         return self.get_IA()
 
-    def get_result_acceptor(self):  # alias for get_AR()
+    def get_result_acceptor(self):
+        """
+        alias for get_AR()
+        """
         return self.get_AR()
 
     # -----------------utility methods---------------------------------------------
@@ -104,13 +154,6 @@ class FunctionalSystem(Vertex):
         delta_S = (K_1S + (2 * K_2S) + (2 * K_3S) + K_4S)/6
         return delta_R, delta_S
 
-    def _calc_rk4_c(self, h):
-        K_1C = h * self._delta_ci(self._S, self._C)
-        K_2C = h * self._delta_ci(self._S, self._C + 0.5 * K_1C)
-        K_3C = h * self._delta_ci(self._S, self._C + 0.5 * K_2C)
-        K_4C = h * self._delta_ci(self._S, self._C + K_3C)
-        delta_C = (K_1C + (2 * K_2C) + (2 * K_3C) + K_4C)/6
-        return delta_C
 
     def _calc_influence(self, pred):
         incoming = self.get_incoming()
@@ -134,6 +177,9 @@ class BaseMotor(FunctionalSystem):
         return self._motiv_cn.get_active() != None
 
     def change_coords(self):
+        raise NotImplementedError()
+
+    def edge_index(self):
         raise NotImplementedError()
 
 

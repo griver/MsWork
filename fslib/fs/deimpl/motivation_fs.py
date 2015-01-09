@@ -31,11 +31,12 @@ class SimpleMotivFS(BaseMotivational):
 
 class MotivationFS(BaseMotivational):
 
-    def __init__(self, env, delta_si, delta_ri, calc_IA, calc_AR, calc_I, goal_state):
-        BaseMotivational.__init__(self, "M(" + goal_state.name + ')')
+    def __init__(self, env, integration_function, delta_si, delta_ri, calc_IA, calc_AR, calc_I, goal_state):
+        BaseMotivational.__init__(self, "Motiv(" + str(goal_state.get_id()) + ')')
         self._goal_state = goal_state
         self._env = env
 
+        self._integration = integration_function
         self._delta_si = delta_si
         self._delta_ri = delta_ri
         self._calc_IA = calc_IA
@@ -45,11 +46,17 @@ class MotivationFS(BaseMotivational):
     def recalculate_params(self):
         self._newIA = self._calc_IA(self)
         self._newAR = self._calc_AR(self)
+        self._newI = self._calc_ii(self)
 
         influence_sum = self._calc_influence(lambda x: True)
-        self._newI = self._calc_ii(self._newIA, self._newAR,  self._C)
 
+        delta_R2, delta_S2 = self._integration(self)
+        #self._newR = self._R  + delta_R
+        #self._newS = self._S  + delta_S
         delta_R, delta_S = self._calc_rk4_rs(1, self._newI, influence_sum)
+        if isinstance(self, BaseMotivational):
+            i = 55
+
         self._newR = self._R + delta_R + 0.001 * random.random() * (self._newIA > 0.02)
         self._newS = self._S + delta_S + 0.001 * random.random() * (self._newIA > 0.02)
 

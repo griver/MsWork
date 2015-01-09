@@ -1,15 +1,14 @@
-#!usr/bin/env python3
+#!usr/bin/env python
 import sys
 from fslib import *
 
 
 if len(sys.argv) == 2:
-    if sys.argv[1] == "single":
+    """if sys.argv[1] == "single":
         test.single_learning((1, 1, 1), EnvBuilder.rhomb())
     elif sys.argv[1] == "multi":
         test.multi_learning([(0, 0, 0), (0, 0, 1), (1, 0, 0)])
-
-    """if sys.argv[1] == "line":
+    if sys.argv[1] == "line":
         print("line")
         test.line(int(sys.argv[2]))
     elif sys.argv[1] == "direct_square":  

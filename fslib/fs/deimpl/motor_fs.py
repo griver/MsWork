@@ -31,17 +31,12 @@ class MotorFS(BaseMotor):
         self.__dnumber = 0
 
 
-
     def recalculate_params(self):
-        current = self._env.get_current_state().coords()[self._index]
-
         self._newIA = self._calc_IA(self)
-        self._newAR = self._calc_AR(current)
+        self._newAR = self._calc_AR(self)
+        self._newI = self._calc_ii(self)
 
         influence_sum = self._calc_influence(lambda e: isinstance(e.get_src(), BaseMotor))
-        sec_influence = self._calc_influence(lambda e:  isinstance(e.get_src(), BaseSecondary))
-        self._newI = self._calc_ii(self._newIA, self._newAR, self._C, sec_influence)
-
         delta_R, delta_S = self._calc_rk4_rs(1, self._newI, influence_sum)
         self._newR = self._R + delta_R + 0.001 * random.random() * (self._newIA > 0.02)
         self._newS = self._S + delta_S + 0.001 * random.random() * (self._newIA > 0.02)
@@ -54,8 +49,6 @@ class MotorFS(BaseMotor):
         self._IA = self._newIA
         self._AR = self._newAR
         self._I = self._newI
-
-
 
 
     def deactivation_method(self):
@@ -79,4 +72,15 @@ class MotorFS(BaseMotor):
         coords = self._env.get_current_state().coords()
         c = list(coords)
         c[self._index] = self._goal
+        return tuple(c)
+
+    def edge_index(self):
+        return self._index
+
+class AdditiveMotorFS(MotorFS):
+    def change_coords(self):
+        coords = self._env.get_current_state().coords()
+        c = list(coords)
+        change = self._goal*2 - 1
+        c[self._index] += change
         return tuple(c)

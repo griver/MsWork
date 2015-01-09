@@ -1,7 +1,10 @@
-from fslib.fs.deimpl.motor_fs import MotorFS
-from fslib.fs.deimpl.motivation_fs import SimpleMotivFS
-from fslib.fs.deimpl.secondary_fs import SecondaryFS
-from fslib.fs.fs_network import BaseFSNetwork
+from fslib import MotorFS
+from fslib import AdditiveMotorFS
+from fslib import SimpleMotivFS
+from fslib import SecondaryFS
+
+from fslib import BaseFSNetwork
+
 import fslib.util.de_equations as de_eqs
 import fslib.util.lm_equations as lm_eqs
 from fslib import LMSecondary
@@ -64,13 +67,28 @@ def create_network(env, create_motor, name = "FSNetwork"):
     assert isinstance(env, Environment)
 
     net = BaseFSNetwork(act_edge, sec_edge, motiv_edge, name)
-    for i in range(env.get_dimension()):
+    for i in xrange(env.get_dimension()):
         mot0 = create_motor(env, net, i, 0)
         mot1 = create_motor(env, net, i, 1)
         net.add_motor(mot0)
         net.add_motor(mot1)
 
     return net
+
+
+# when motor_fs is connected to edge index instead of vertex coordinate
+def create_edge_moving_network(env, create_motor, name = "FSNetwork"):
+    assert isinstance(env, Environment)
+    net = BaseFSNetwork(act_edge, sec_edge, motiv_edge, name)
+
+    max_degree = max(len(v.get_outcoming()) for v in env.vertices())
+
+    for i in xrange(max_degree):
+        mot0 = create_motor(env, net, i)
+        net.add_motor(mot0)
+
+    return net
+
 
 
 
@@ -85,7 +103,8 @@ def motiv(env, goal):
 
     calc_IA = lambda x: 1.0
     calc_AR = de_eqs.mot_ar_maker( mot_tau1, mot_tau)
-    m = MotivationFS(env, delta_si, delta_ri, calc_IA, calc_AR, calc_I, goal)
+    numerical_integration = de_eqs.delta_RS_with_noise(de_eqs.delta_RS_rk4(1.0))
+    m = MotivationFS(env, de_eqs.delta_RS_rk4(), delta_si, delta_ri, calc_IA, calc_AR, calc_I, goal)
     return m
 
 def secondary(env, motiv_fs, prev, goal):
@@ -98,7 +117,7 @@ def secondary(env, motiv_fs, prev, goal):
     #calc_AR = eqs.foo_maker(81, 91)
     calc_ii = de_eqs.ii_maker(sec_alpha, sec_beta, sec_gamma, 0)
     sec =  SecondaryFS(env, delta_si, delta_ri, delta_ci, calc_IA, calc_AR, calc_ii, motiv_fs, prev, goal)
-    #sec._active_threshold = 2.0
+    #sec.active_threshold = 2.0
     return sec
 
 def motor(env, net, index, coord_val):
@@ -112,6 +131,19 @@ def motor(env, net, index, coord_val):
     calc_AR = de_eqs.motor_ar_maker(act_k, 0.1, coord_val)
     calc_ii = de_eqs.ii_maker(act_alpha, act_beta, act_gamma, 1)
     return MotorFS(env, delta_si, delta_ri, delta_ci, calc_IA, calc_AR, calc_ii, motiv_cn, index, coord_val)
+
+def edge_moving_motor(env, net, index, coord_val=None):
+    assert isinstance(net, BaseFSNetwork)
+    motiv_cn = net.get_cnet(net.MOTIV_NET)
+    delta_si = de_eqs.delta_si_maker(act_k, act_x0, act_sigma1)
+    delta_ri = de_eqs.delta_ri_maker(act_tau, act_sigma2)
+    delta_ci = de_eqs.delta_ci_maker(act_k, act_x1, act_tauc0, act_tauc1)
+    calc_IA = de_eqs.motor_ia_maker4(de_eqs.discrete_f_maker(0.5), index)
+    calc_AR = lambda fs: 0
+    calc_ii = de_eqs.ii_maker(act_alpha, act_beta, act_gamma, 1)
+    return MotorFS(env, delta_si, delta_ri, delta_ci, calc_IA, calc_AR, calc_ii, motiv_cn, index, coord_val)
+
+
 
 def base_fs(env, motiv_fs, index, coord_val):
     delta_si = de_eqs.delta_si_maker(act_k, act_x0, act_sigma1)
@@ -135,9 +167,9 @@ def lm_secondary(net, env, motiv_fs, prev, goal):
 
 #deactivation after one activity period
 def lm_secondary2(net, env, motiv_fs, prev, goal):
-    calc_IA = lm_eqs.sec_IA_maker()
+    calc_IA = lm_eqs.weighted_IA_maker(1.0) #lm_eqs.sec_IA_maker()
     calc_AR = lm_eqs.sec_AR_maker()
-    calc_ii = lm_eqs.sec_ii_maker2(0.3)
+    calc_ii = lm_eqs.sec_ii_maker(0.3)
     return OneActivationSecondary(net, env, motiv_fs, prev, goal, calc_IA, calc_AR, calc_ii, lm_eqs.delta_si_with_deactivation)
 
 

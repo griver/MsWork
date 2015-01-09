@@ -5,7 +5,7 @@ from fslib.util.plots import PlotBuilder
 from fslib import BaseFSNetwork
 from fslib import Environment
 from logger import TrialLogger
-
+from fslib import algo
 
 
 def _find_predicate(sec, start, end, motiv):
@@ -13,7 +13,7 @@ def _find_predicate(sec, start, end, motiv):
     return sec.IA_point() is start and sec.AR_point() is end and sec.get_motivation() is motiv
 
 
-def _find_unlearned_transit(path, starting_state, net, motiv):
+def _find_unlearned_transit(path, trial_start, net, motiv):
     goal = motiv.get_goal()
     if goal is not path[-1]:
         raise ValueError("path must end with a goal state")
@@ -26,7 +26,7 @@ def _find_unlearned_transit(path, starting_state, net, motiv):
         if fs is None:
             return i
 
-        if path[i] == starting_state:
+        if i == trial_start:
             break
 
     return None
@@ -56,7 +56,7 @@ def single_goal_learning(env, net, motiv, sec_to_sec_weight, sec_to_motor_weight
         net.apply()
         active_motor_fs = filter(lambda fs: fs.is_active(), motor_list)
 
-        for i in range(0, len(net.vertices())):
+        for i in xrange(0, len(net.vertices())):
             logger[i].append(net.get_vertex(i).get_S())
 
         if len(active_motor_fs) > 1:
@@ -72,7 +72,7 @@ def single_goal_learning(env, net, motiv, sec_to_sec_weight, sec_to_motor_weight
             activefs += 1
             prev_fs = curr_fs
 
-        env.update_state(curr_fs)
+        env.update_state(curr_fs.edge_index())
         state_changes.append(env.get_current_state().get_id())
 
         if env.get_current_state() is not st_path[-1]:
@@ -84,7 +84,7 @@ def single_goal_learning(env, net, motiv, sec_to_sec_weight, sec_to_motor_weight
     print("active_fs == " + str(activefs))
     act_funcs = []
     sec_funcs = []
-    for i in range(0, len(logger)):
+    for i in xrange(0, len(logger)):
         fs = net.get_vertex(i)
         if isinstance(fs, BaseMotor):
             act_funcs.append((logger[i], '-', fs.name))
@@ -136,20 +136,27 @@ def single_goal_learning(env, net, motiv, sec_to_sec_weight, sec_to_motor_weight
 
 
 def trial_stop_condition(env, net):
+    """
+    :return: True - если мы находимся в целевом состоянии хотя бы одной из активных мотивационных ФС.
+    """
     ##assert isinstance(net, BaseFSNetwork)
     ##assert isinstance(env, Environment)
-    # Если мы находимся в целевом состоянии хотя бы одной мотивационной ФС
     return len(filter(lambda m: m.is_active() and env.get_current_state() is m.get_goal(),  net.all_motiv())) > 0
 
 
 def trial(net, env, logger):
+    """
+    Функция получает агента(net), среду(env) и проводит испытание.
+    Испытание заканчивается, когда агент достигает целевого состояния хотя бы одной из активных мотивационных ФС.
+    Все действия агента записываются логгером.
+    """
     #assert isinstance(net, BaseFSNetwork)
-    assert isinstance(env, Environment)
+    #assert isinstance(env, Environment)
     #assert isinstance(logger, TrialLogger)
     actions_number = 0
     prev_fs = None
+    prev_state = env.get_current_state()
     logger.start_trial(env, net)
-
 
     while not trial_stop_condition(env, net):
         net.recalc()
@@ -157,12 +164,18 @@ def trial(net, env, logger):
         curr_motor = net.get_action()
 
         if curr_motor is not None:
-            if curr_motor is not prev_fs:
-                print(curr_motor.name + " is active")
+            if curr_motor is not prev_fs or env.get_current_state() is not prev_state:
                 actions_number += 1
 
-            env.update_state(curr_motor.change_coords())
+                if not actions_number % 500: #
+                    print("actions number = {0}".format(actions_number))
 
+            env.update_state(curr_motor.edge_index())  # """
+
+            if prev_state is not env.get_current_state():
+                for fs in net.all_motor(): fs.reset()
+
+        prev_state = env.get_current_state()
         prev_fs = curr_motor
         logger.add(net, env)
 
@@ -170,9 +183,12 @@ def trial(net, env, logger):
 
 
 def network_update(net, env, logger, sec_cnet_weight=1.0, sec_motor_weight=1.5):
+    """
+    По результатам испытания функция добавляет новые вторичные фс
+    """
     assert isinstance(net, BaseFSNetwork)
-    assert isinstance(env, Environment)
-    assert isinstance(logger, TrialLogger)
+    # assert isinstance(env, Environment)
+    # assert isinstance(logger, TrialLogger)
 
     trial_path = logger.get_path()
     trial_actions = logger.get_actions()
@@ -181,14 +197,14 @@ def network_update(net, env, logger, sec_cnet_weight=1.0, sec_motor_weight=1.5):
     if len(motivs) != 1:
         raise ValueError("Ошибка: Количество мотивационных систем удовлеторивших потребность: " + str(len(motivs)))
 
-    id = _find_unlearned_transit(trial_path, logger.get_last_start(), net, motivs[0])
+    id = _find_unlearned_transit(trial_path, logger.get_last_start(), net, motivs[0])  #
 
     if id is None:
         print("Весь путь от начального состояния до цели был выучен")
         return
 
     print("Добавляем вторичную фс для перехода из " + trial_path[id].name + " в " + trial_path[id + 1].name)
-    print("она будет стимулировать активность системы  " + trial_actions[id].name)
+    print("она будет стимулировать активность моторной фс  " + trial_actions[id].name)
     sec = FSBuilder.lm_secondary2(net, env, motivs[0], trial_path[id], trial_path[id + 1])
 
     # find other secondary fs associated with this state
@@ -196,24 +212,27 @@ def network_update(net, env, logger, sec_cnet_weight=1.0, sec_motor_weight=1.5):
 
     net.add_vertex(sec)
 
+    # если существуют другие вторичные ФС связанные с тем же состоянием,
+    # добавляем взаимноподовляющие связи между ними и новой вторичной ФС
     if len(secs) == 1:
         cnet_name = "CNET" + trial_path[id].name
         net.create_cnet(cnet_name, sec_cnet_weight)
-        print("create competitive network: " + cnet_name)
+        print("create competitive network: " + cnet_name) #competitive network
         net.add_in_cnet(sec, cnet_name)
         net.add_in_cnet(secs[0], cnet_name)
     elif len(secs) > 1:
         cnet_name = secs[0].get_cnet_name()
         net.add_in_cnet(sec, cnet_name)
 
+    # добавляем связи от вторичной фс к моторным фс
     for fs in net.all_motor():
         if fs is trial_actions[id]:
             net.add_edge(sec, fs, sec_motor_weight)
         else:
             net.add_edge(sec, fs, -sec_motor_weight)
+    net.add_edge(motivs[0], sec, 0.98)
 
-
-    #if(fs.IA_point().coords() == (0,1,1) and fs.AR_point().coords() )
+    # ищем существует ли в сети обратная к новой вторичная система
     contrs = filter(lambda fs: fs.IA_point() is trial_path[id + 1]
                         and fs.AR_point() is trial_path[id]
                         and fs.get_motivation() is motivs[0], net.all_secondary())
@@ -237,7 +256,7 @@ def draw_trial(net, env, logger):
     x_axis = range(0, logger.get_count())
     activities = logger.get_fs_activities()
 
-    for i in range(0, len(activities)):
+    for i in xrange(0, len(activities)):
         fs = net.get_vertex(i)
         if isinstance(fs, BaseMotor):
             motor_funcs.append((activities[i], '-', fs.name))
@@ -275,7 +294,7 @@ def draw_trial_bars(net, env, logger):
     x_axis = range(0, logger.get_count())
     activities = logger.get_fs_activities()
 
-    for i in range(0, len(activities)):
+    for i in xrange(0, len(activities)):
         fs = net.get_vertex(i)
         if isinstance(fs, BaseMotor):
             motor_funcs.append((activities[i], '-', fs.name))
@@ -297,6 +316,7 @@ def draw_trial_bars(net, env, logger):
     pb.plot_curves(0, x_axis, (logger.get_states(), 'o-', "State"))
 
     pb.show()
+
 
 def reset(*resetables):  # обновит тех кого передадим!
     for obj in resetables:

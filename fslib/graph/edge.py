@@ -16,6 +16,9 @@ class Edge(object):
     def weight(self):
         return self._weight
 
+    def set_weight(self, weight):
+        self._weight = weight
+
     def remove(self):
         self._src._remove_outcoming(self)
         self._dst._remove_incoming(self)

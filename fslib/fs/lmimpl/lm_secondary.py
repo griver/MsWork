@@ -6,7 +6,9 @@ from fslib import BaseSecondary
 
 class LMSecondary(BaseSecondary):
     def __init__(self, net, env, motivation, prev_st, goal_st, calc_IA, calc_AR, calc_ii, delta_si):
-        BaseSecondary.__init__(self, "Sec: " + prev_st.name + " -> " + goal_st.name, active_threshold=0.97)
+        BaseSecondary.__init__(self,
+                               "Sec(" + str(motivation.get_id()) + "): " + str(prev_st.get_id()) + " -> " + str(goal_st.get_id()),
+                               active_threshold=0.96)
         self._delta_si = delta_si
         self._newS = 0
         self._newIA = 0
